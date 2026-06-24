@@ -2,12 +2,11 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Inventaire Pêche Électrique</title>
 
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#00695c">
+<meta name="theme-color" content="#1e1e1e">
 
 <style>
 body{
@@ -15,12 +14,46 @@ font-family:Arial;
 margin:10px;
 background:#f5f6f8;
 }
+.layout{
+display:flex;
+gap:20px;
+}
 
+.sidebar{
+width:200px;
+position:sticky;
+top:10px;
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+
+.sidebar button{
+padding:12px;
+background:#0f6b5f;
+color:white;
+border:none;
+border-radius:8px;
+cursor:pointer;
+}
+
+.content{
+flex:1;
+}
 .card{
 background:white;
 padding:16px;
 border-radius:12px;
 margin-bottom:12px;
+}
+
+.card-center{
+text-align:center;
+}
+
+.card-center .big,
+.card-center .small{
+text-align:center;
 }
 
 button{
@@ -35,33 +68,64 @@ color:white;
 }
 
 button.danger{background:#b00020}
+button.secondary{background:#666}
 
 input,select{
 width:100%;
 padding:12px;
 margin:6px 0;
 font-size:16px;
+box-sizing:border-box;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 14px;
 }
 
-table{
-width:100%;
-border-collapse:collapse;
-font-size:16px;
-background:white;
-border-radius:10px;
-overflow:hidden;
+th, td {
+    padding: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-th{
-background:#00695c;
-color:white;
-padding:14px;
-text-align:left;
+/* ✅ Entête */
+th {
+    background-color: #dbeafe;
+    font-weight: bold;
+    text-align: center;
+
+    /* ✅ NOUVEAU : entête figée */
+    position: sticky;
+    top: 0;
+    z-index: 2;
 }
 
-td{
-padding:14px;
-border-bottom:1px solid #eee;
+/* ✅ Alignement spécifique */
+td:nth-child(1),
+td:nth-child(6) {
+    text-align: center;
+}
+
+td:nth-child(4),
+td:nth-child(5) {
+    text-align: left;
+}
+
+/* ✅ Effet hover */
+tr:hover td {
+    background-color: #eef6ff;
+}
+
+/* ✅ Zébrage léger */
+tr:nth-child(even) td {
+    background-color: #f9fafb;
+}
+td:first-child,
+td:nth-child(2){
+text-align:center;
 }
 
 tr{
@@ -73,20 +137,132 @@ tr:active{
 background:#e0f2f1;
 }
 
-.big{font-size:18px;font-weight:bold}
-.small{font-size:12px;color:#666}
+.big{font-size:18px;font-weight:bold;text-align:center;display:block}
+.small{font-size:12px;color:#666;text-align:center;display:block}
 
 .flex{display:flex;gap:8px}
 .flex > div{flex:1}
+
+ul{
+list-style:none;
+padding:0;
+margin:0;
+}
+
+ul li{
+padding:10px;
+border-bottom:1px solid #eee;
+display:flex;
+justify-content:space-between;
+align-items:center;
+}
+
+ul li button{
+width:auto;
+padding:8px 12px;
+font-size:14px;
+margin:0;
+}
+
+label{
+display:block;
+font-size:14px;
+color:#555;
+margin-top:8px;
+}
+
+h2,h3{
+text-align:center;
+}
 </style>
 
 </head>
 
 <body>
 
+<datalist id="speciesDatalist">
+<option value="TRF">
+<option value="CHE">
+<option value="GAR">
+<option value="PER">
+<option value="SAN">
+<option value="BRO">
+<option value="CAR">
+<option value="TAN">
+<option value="BRE">
+<option value="ANG">
+<option value="LOU">
+<option value="SIL">
+<option value="HOT">
+<option value="EPR">
+<option value="VAI">
+<option value="BLO">
+<option value="GOU">
+<option value="PCH">
+<option value="PSE">
+<option value="RHO">
+<option value="SAB">
+<option value="ALO">
+<option value="PHX">
+</datalist>
+
 <div id="app"></div>
 
 <script src="app.js"></script>
+
+<script>
+let deferredPrompt = null;
+
+// capture event si dispo
+window.addEventListener("beforeinstallprompt", (e) => {
+e.preventDefault();
+deferredPrompt = e;
+showInstallButton();
+});
+
+// fallback SI EVENT NE SE DECLENCHE PAS
+window.addEventListener("load", () => {
+setTimeout(showInstallButton, 3000);
+});
+
+function showInstallButton(){
+
+if(document.getElementById("installBtn")) return;
+
+const btn = document.createElement("button");
+btn.id = "installBtn";
+btn.innerText = "📲 Installer l'application";
+
+btn.style.position = "fixed";
+btn.style.bottom = "20px";
+btn.style.left = "10px";
+btn.style.right = "10px";
+btn.style.zIndex = "9999";
+btn.style.background = "#00695c";
+btn.style.color = "white";
+btn.style.padding = "16px";
+btn.style.fontSize = "18px";
+btn.style.border = "none";
+btn.style.borderRadius = "10px";
+
+btn.onclick = async () => {
+
+btn.remove();
+
+// si PWA dispo
+if(deferredPrompt){
+deferredPrompt.prompt();
+await deferredPrompt.userChoice;
+deferredPrompt = null;
+return;
+}
+
+// fallback manuel
+};
+
+document.body.appendChild(btn);
+}
+</script>
 
 <script>
 if("serviceWorker" in navigator){
@@ -94,5 +270,11 @@ navigator.serviceWorker.register("service-worker.js");
 }
 </script>
 
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"8607d2a720d14b038279025b2b5a82e5","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
+<script>
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+});
+</script>

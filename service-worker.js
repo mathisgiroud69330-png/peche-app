@@ -1,21 +1,24 @@
-const CACHE="peche-v8";
+const CACHE_NAME = "stations-cache-v1";
 
-const FILES=[
-"./",
-"./index.html",
-"./app.js",
-"./manifest.json",
-"./icon.png"
+const urlsToCache = [
+  "./",
+  "./index.html",
+  "./app.js",
+  "./style.css"
 ];
 
-self.addEventListener("install",e=>{
-e.waitUntil(
-caches.open(CACHE).then(cache=>cache.addAll(FILES))
-);
+// install
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(urlsToCache))
+  );
 });
 
-self.addEventListener("fetch",e=>{
-e.respondWith(
-caches.match(e.request).then(r=>r || fetch(e.request))
-);
+// fetch (offline first)
+self.addEventListener("fetch", e => {
+  e.respondWith(
+    caches.match(e.request)
+      .then(res => res || fetch(e.request))
+  );
 });
