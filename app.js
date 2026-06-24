@@ -1,4 +1,3 @@
-
 let stations = JSON.parse(localStorage.getItem("stations") || "[]");
 
 let currentStation = null;
@@ -11,21 +10,19 @@ const faciesList=["Radier","Plat","Mouille","Cascade"];
 const habitatList=["Blocs","Racines","Végétation"];
 const granuloList=["Limons","Sable","Graviers","Cailloux","Galets","Blocs"];
 
-/* ================= SAVE ROBUSTE ================= */
+/* ================= SAVE OPTIMISÉ ================= */
+
+let saveTimeout;
 
 function save(){
 localStorage.setItem("stations", JSON.stringify(stations));
 sessionStorage.setItem("stations_backup", JSON.stringify(stations));
 }
 
-/* autosave global sécurité */
-setInterval(save, 1000);
-
-window.addEventListener("beforeunload", save);
-
-document.addEventListener("visibilitychange", ()=>{
-if(document.visibilityState === "hidden") save();
-});
+function scheduleSave(){
+clearTimeout(saveTimeout);
+saveTimeout = setTimeout(save, 500);
+}
 
 /* ================= HOME ================= */
 
@@ -84,7 +81,6 @@ renderHome();
 }
 
 function openStation(id){
-
 currentStation=stations.find(s=>s.id===id);
 renderStation();
 }
@@ -102,7 +98,10 @@ document.getElementById("app").innerHTML=`
 
 <div class="card">
 <h3>${currentStation.name}</h3>
-<div class="small">Points: ${pts} | Poissons: ${fish}</div>
+<div class="small">
+Points: ${pts} | Poissons: ${fish}<br>
+${getStats()}
+</div>
 </div>
 
 <div class="card">
@@ -135,8 +134,34 @@ ${currentStation.points.map(p=>`
 </tbody>
 </table>
 </div>
-
 `;
+}
+
+/* ================= STATS ================= */
+
+function getStats(){
+
+let speciesCount = {};
+let totalSize = 0;
+let totalFish = 0;
+
+currentStation.points.forEach(p=>{
+p.fish.forEach(f=>{
+totalFish++;
+totalSize += Number(f.size) || 0;
+
+if(!speciesCount[f.sp]) speciesCount[f.sp]=0;
+speciesCount[f.sp]++;
+});
+});
+
+let avg = totalFish ? Math.round(totalSize/totalFish) : 0;
+
+let speciesTxt = Object.entries(speciesCount)
+.map(([k,v]) => `${k}:${v}`)
+.join(" | ");
+
+return `Taille moy: ${avg} mm<br>${speciesTxt}`;
 }
 
 /* ================= POINT ================= */
@@ -146,9 +171,11 @@ function newPoint(dup){
 let pts=currentStation.points;
 let base=dup?pts[pts.length-1]:null;
 
+let nextNum = Math.max(0, ...pts.map(p => p.num || 0)) + 1;
+
 let p={
 id:Date.now(),
-num:pts.length+1,
+num:nextNum,
 gpn:"",
 position:base?.position||"",
 facies:base?.facies||"",
@@ -228,16 +255,16 @@ ${f.sp} | ${f.size} mm | ${f.weight} g
 
 <div class="card">
 <button onclick="savePoint()">✔ Retour station</button>
+<button onclick="saveAndNext()">➡️ Point suivant</button>
+<button onclick="duplicateAndNext()">↪ Dupliquer + suivant</button>
 <button class="danger" onclick="deletePoint()">Supprimer point</button>
 </div>
-
 `;
 
-/* ===== FIX AUTOSAVE POINT ===== */
 bindPointAutosaveFixed();
 }
 
-/* ================= AUTOSAVE FIX ================= */
+/* ================= AUTOSAVE ================= */
 
 function syncPoint(){
 
@@ -250,27 +277,21 @@ currentPoint.habitat = document.getElementById("habitat")?.value || "";
 currentPoint.granulo = document.getElementById("granulo")?.value || "";
 currentPoint.depth = document.getElementById("depth")?.value || "";
 
-save();
+scheduleSave();
 }
 
-/* bind inputs propre */
 function bindPointAutosaveFixed(){
 
 setTimeout(()=>{
-
 ["gpn","position","facies","habitat","granulo","depth"].forEach(id=>{
-
 let el=document.getElementById(id);
 if(!el) return;
-
 el.oninput = syncPoint;
-
 });
-
 },0);
 }
 
-/* ================= SAVE POINT ================= */
+/* ================= SAVE FLOW ================= */
 
 function savePoint(){
 syncPoint();
@@ -278,16 +299,32 @@ save();
 renderStation();
 }
 
+function saveAndNext(){
+syncPoint();
+save();
+newPoint(false);
+}
+
+function duplicateAndNext(){
+syncPoint();
+save();
+newPoint(true);
+}
+
 /* ================= FISH ================= */
 
 function addFish(){
 
-if(!sp.value || !size.value) return;
+const spEl = document.getElementById("sp");
+const sizeEl = document.getElementById("size");
+const weightEl = document.getElementById("weight");
+
+if(!spEl.value || !sizeEl.value) return;
 
 currentPoint.fish.push({
-sp:sp.value,
-size:size.value,
-weight:weight.value
+sp: spEl.value,
+size: sizeEl.value,
+weight: weightEl.value
 });
 
 save();
@@ -295,11 +332,8 @@ editPoint(currentPoint.id);
 }
 
 function deleteFish(i){
-
 if(!confirm("Supprimer poisson ?")) return;
-
 currentPoint.fish.splice(i,1);
-
 save();
 editPoint(currentPoint.id);
 }
