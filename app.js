@@ -468,7 +468,7 @@ renderHome();
 // ✅ PWA Service Worker
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js")
+    navigator.serviceWorker.register("service-worker.js")
       .then(() => console.log("SW OK"))
       .catch(err => console.log("SW error", err));
   });
