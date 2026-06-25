@@ -21,8 +21,16 @@ let currentPoint = null;
 stations.forEach(s=>{
 if(!s.date) s.date="";
 if(!s.operator) s.operator="";
+if(!s.protocol) s.protocol="point";
+
+// ✅ FIX CRASH
+if(!s.points) s.points=[];
 
 s.points.forEach(p=>{
+
+// ✅ FIX CRASH
+if(!p.fish) p.fish=[];
+
 if(p.gpn && !p.gps){
 p.gps = p.gpn;
 delete p.gpn;
@@ -56,30 +64,91 @@ const granulometrieList=[
 "Galets","Pierres","Blocs","Roche mère"
 ];
 
+/* ================= PROTOCOLS ================= */
+
+const PROTOCOLS = {
+
+point:{
+fields:[
+{key:"num", label:"#"},
+{key:"gps", label:"GPS N°"},
+{key:"position", label:"Position"},
+{key:"facies", label:"Faciès"},
+{key:"habitat", label:"Habitat"},
+{key:"granulometrie", label:"Granulométrie"},
+{key:"depth", label:"Profondeur"}
+]
+},ambiance:{
+fields:[
+{key:"num", label:"Ambiance N°"},
+{key:"gps", label:"GPS N°"},
+{key:"longueur", label:"Longueur (m)"},
+{key:"largeur", label:"Largeur (m)"},
+{key:"profondeur", label:"Profondeur (m)"},
+{key:"vitesse", label:"Vitesse"},
+{key:"position", label:"Position"},
+{key:"habitat", label:"Habitat"},
+{key:"substrat", label:"Substrat"},
+{key:"surface", label:"Surface (m²)"}
+]
+}
+
+};
+
 /* ================= SAVE ================= */
 
 let saveTimeout;
+let lastSaveStatus = "ok";
+let lastSaveTime = 0;
 
 function save(){
+try {
 const data = JSON.stringify(stations);
 
 localStorage.setItem("stations", data);
+
+// ✅ vérification lecture
+const check = localStorage.getItem("stations");
+if(check !== data){
+throw new Error("Mismatch storage");
+}
+
 sessionStorage.setItem("stations_backup", data);
 
-// ✅ backup crash-proof avec timestamp
 localStorage.setItem("stations_backup_full", JSON.stringify({
 data: stations,
 time: Date.now()
 }));
+
+lastSaveStatus = "ok";
+lastSaveTime = Date.now();
+
+} catch(e){
+console.error("SAVE ERROR", e);
+lastSaveStatus = "error";
+}
+
+updateSaveIndicator();
 }
 
 function scheduleSave(){
 clearTimeout(saveTimeout);
-
-// ✅ sauvegarde immédiate (anti crash)
 save();
-
 saveTimeout = setTimeout(save, 500);
+}
+
+function updateSaveIndicator(){
+const el = document.getElementById("saveStatus");
+
+if(!el) return;
+
+if(lastSaveStatus === "ok"){
+el.textContent = "💾 sauvegardé";
+el.style.color = "green";
+} else {
+el.textContent = "⚠️ erreur sauvegarde";
+el.style.color = "red";
+}
 }
 
 /* ================= HOME ================= */
@@ -99,7 +168,8 @@ html+=`
 <div class="big">${s.name}</div>
 <div class="small">
 ${s.date || ""} ${s.operator ? " | "+s.operator : ""}<br>
-Points: ${pts} | Poissons: ${fish}
+Points: ${pts} | Poissons: ${fish}<br>
+Protocole: ${s.protocol || "point"}
 </div>
 
 <button onclick="openStation(${s.id})">Ouvrir</button>
@@ -118,19 +188,72 @@ document.getElementById("app").innerHTML=html;
 
 /* ================= STATION ================= */
 
+let selectedProtocol = "point";
+
+/* ✅ alias pour éviter l'erreur */
 function createStation(){
+openCreateStationPopup();
+}
 
-let name=prompt("Nom station ?");
-if(!name)return;
+function openCreateStationPopup(){
 
-let date=prompt("Date ?");
-let operator=prompt("Opérateur ?");
+const today = new Date().toISOString().split("T")[0];
+
+document.getElementById("app").innerHTML = `
+<div class="card">
+
+<h2>Nouvelle station</h2>
+
+<label>Nom</label>
+<input id="name" placeholder="Nom station">
+
+<label>Date</label>
+<input type="date" id="date" value="${today}">
+
+<label>Opérateur</label>
+<input id="operator" placeholder="Opérateur">
+
+<label>Protocole</label>
+<div id="protocolSelect">
+  <button onclick="selectProtocol('point', event)">Point</button>
+  <button onclick="selectProtocol('ambiance', event)">Ambiance</button>
+  <button onclick="selectProtocol('autre', event)">Autre</button>
+</div>
+
+<br>
+
+<button onclick="validateStation()">✅ Créer</button>
+
+<button onclick="renderHome()">❌ Annuler</button>
+
+</div>
+`;
+}
+
+function selectProtocol(p, e){
+  selectedProtocol = p;
+
+  document.querySelectorAll("#protocolSelect button").forEach(btn=>{
+    btn.style.background = "";
+  });
+
+  if(e) e.target.style.background = "#4CAF50";
+}
+
+function validateStation(){
+
+let name = document.getElementById("name").value;
+if(!name) return alert("Nom requis");
+
+let date = document.getElementById("date").value;
+let operator = document.getElementById("operator").value;
 
 stations.push({
-id:Date.now(),
+id: Date.now() + Math.random(),
 name,
 date,
 operator,
+protocol: selectedProtocol,
 points:[]
 });
 
@@ -159,6 +282,8 @@ let fish=0;
 
 currentStation.points.forEach(p=>fish+=p.fish.length);
 
+let proto = PROTOCOLS[currentStation.protocol || "point"];
+
 document.getElementById("app").innerHTML=`
 
 <div class="card">
@@ -172,34 +297,26 @@ ${getStats()}
 
 <div class="layout">
 
-    <div class="sidebar">
-        <button onclick="addPoint()">+ Point vierge</button>
-        <button onclick="duplicatePoint()">Dupliquer point</button>
-        <button onclick="exportCSV()">Export CSV</button>
-        <button onclick="renderHome()">← Accueil</button>
-    </div>
+<div class="sidebar">
+<button onclick="addPoint()">+ Point vierge</button>
+<button onclick="duplicatePoint()">Dupliquer point</button>
+<button onclick="exportCSV()">Export CSV</button>
+<button onclick="renderHome()">← Accueil</button>
+</div>
 
-    <div class="content">
+<div class="content">
 
 <div class="card">
 <table>
 <tr>
-<th>#</th>
-<th>GPS N°</th>
-<th>Position</th>
-<th>Faciès</th>
-<th>Habitats</th>
+${proto.fields.map(f=>`<th>${f.label}</th>`).join("")}
 <th>Poissons</th>
 </tr>
 
 <tbody>
 ${currentStation.points.map(p=>`
 <tr onclick="editPoint(${p.id})">
-<td>${p.num}</td>
-<td>${p.gps || "-"}</td>
-<td>${p.position || "-"}</td>
-<td>${p.facies || "-"}</td>
-<td>${p.habitat || "-"}</td>
+${proto.fields.map(f=>`<td>${p[f.key] || "-"}</td>`).join("")}
 <td>${p.fish.length}</td>
 </tr>
 `).join("")}
@@ -246,7 +363,7 @@ let base=dup?pts[pts.length-1]:null;
 let nextNum = Math.max(0, ...pts.map(p => p.num || 0)) + 1;
 
 let p={
-id:Date.now(),
+id:Date.now() + Math.random(),
 num:nextNum,
 gps:"",
 position:base?.position||"",
@@ -254,6 +371,14 @@ facies:base?.facies||"",
 habitat:base?.habitat||"",
 granulometrie:base?.granulometrie||"",
 depth:"",
+largeur:"",
+longueur:"",
+substrat:"",
+ombrage:"",
+remarque:"",
+profondeur:"",
+vitesse:"",
+surface:"",
 fish:[]
 };
 
@@ -262,8 +387,9 @@ pts.push(p);
 save();
 editPoint(p.id);
 }
+
 function addPoint(){
-    newPoint(false);
+newPoint(false);
 }
 
 /* ================= EDIT POINT ================= */
@@ -271,6 +397,8 @@ function addPoint(){
 function editPoint(id){
 
 currentPoint=currentStation.points.find(p=>p.id===id);
+
+let proto = PROTOCOLS[currentStation.protocol || "point"];
 
 document.getElementById("app").innerHTML=`
 
@@ -281,27 +409,77 @@ document.getElementById("app").innerHTML=`
 
 <div class="card">
 
-<label>GPS N°</label>
-<input id="gps" value="${currentPoint.gps}">
+${proto.fields.map(f=>{
 
-<label>Position</label>
+if(f.key==="num") return "";
+
+if(currentStation.protocol==="point"){
+
+if(f.key==="position"){
+return `<label>${f.label}</label>
 <input id="position" list="pos" value="${currentPoint.position}">
-<datalist id="pos">${positions.map(v=>`<option value="${v}">`).join("")}</datalist>
+<datalist id="pos">${positions.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
 
-<label>Faciès</label>
+if(f.key==="facies"){
+return `<label>${f.label}</label>
 <input id="facies" list="fac" value="${currentPoint.facies}">
-<datalist id="fac">${faciesList.map(v=>`<option value="${v}">`).join("")}</datalist>
+<datalist id="fac">${faciesList.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
 
-<label>Habitat</label>
+if(f.key==="habitat"){
+return `<label>${f.label}</label>
 <input id="habitat" list="hab" value="${currentPoint.habitat}">
-<datalist id="hab">${habitatList.map(v=>`<option value="${v}">`).join("")}</datalist>
+<datalist id="hab">${habitatList.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
 
-<label>Granulométrie</label>
+if(f.key==="granulometrie"){
+return `<label>${f.label}</label>
 <input id="granulometrie" list="gra" value="${currentPoint.granulometrie}">
-<datalist id="gra">${granulometrieList.map(v=>`<option value="${v}">`).join("")}</datalist>
+<datalist id="gra">${granulometrieList.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
 
-<label>Profondeur (cm)</label>
-<input id="depth" value="${currentPoint.depth}">
+}
+
+// ✅ PROTOCOLE AMBIANCE
+if(currentStation.protocol==="ambiance"){
+
+if(f.key==="position"){
+return `<label>${f.label}</label>
+<input id="position" list="pos" value="${currentPoint.position}">
+<datalist id="pos">${positions.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
+
+if(f.key==="vitesse"){
+const vitesses=["nulle","faible","moyenne","forte","très forte"];
+return `<label>${f.label}</label>
+<input id="vitesse" list="vit" value="${currentPoint.vitesse}">
+<datalist id="vit">${vitesses.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
+
+if(f.key==="habitat"){
+return `<label>${f.label}</label>
+<input id="habitat" list="hab" value="${currentPoint.habitat}">
+<datalist id="hab">${habitatList.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
+
+if(f.key==="substrat"){
+return `<label>${f.label}</label>
+<input id="substrat" list="gra" value="${currentPoint.substrat}">
+<datalist id="gra">${granulometrieList.map(v=>`<option value="${v}">`).join("")}</datalist>`;
+}
+
+if(f.key==="surface"){
+return `<label>${f.label}</label>
+<input id="surface" value="${currentPoint.surface||""}" disabled>`;
+}
+
+}
+
+return `<label>${f.label}</label>
+<input id="${f.key}" value="${currentPoint[f.key]||""}">`;
+
+}).join("")}
 
 </div>
 
@@ -314,9 +492,7 @@ document.getElementById("app").innerHTML=`
 <datalist id="species">
 <option value="TRF"><option value="CHE"><option value="BRO"><option value="SAN">
 <option value="PER"><option value="GAR"><option value="ANG">
-</datalist>
-
-<input id="size" placeholder="mm">
+</datalist><input id="size" placeholder="mm">
 <input id="weight" placeholder="g">
 </div>
 
@@ -350,12 +526,21 @@ function syncPoint(){
 
 if(!currentPoint) return;
 
-currentPoint.gps = document.getElementById("gps")?.value || "";
-currentPoint.position = document.getElementById("position")?.value || "";
-currentPoint.facies = document.getElementById("facies")?.value || "";
-currentPoint.habitat = document.getElementById("habitat")?.value || "";
-currentPoint.granulometrie = document.getElementById("granulometrie")?.value || "";
-currentPoint.depth = document.getElementById("depth")?.value || "";
+let proto = PROTOCOLS[currentStation.protocol || "point"];
+
+proto.fields.forEach(f=>{
+let el=document.getElementById(f.key);
+if(el){
+currentPoint[f.key]=el.value;
+}
+});
+
+// ✅ calcul surface ambiance
+if(currentStation.protocol==="ambiance"){
+let L = parseFloat(currentPoint.longueur) || 0;
+let l = parseFloat(currentPoint.largeur) || 0;
+currentPoint.surface = +(L*l).toFixed(2);
+}
 
 scheduleSave();
 }
@@ -363,10 +548,11 @@ scheduleSave();
 function bindPointAutosaveFixed(){
 
 setTimeout(()=>{
-["gps","position","facies","habitat","granulometrie","depth"].forEach(id=>{
-let el=document.getElementById(id);
-if(!el) return;
-el.oninput = syncPoint;
+let proto = PROTOCOLS[currentStation.protocol || "point"];
+
+proto.fields.forEach(f=>{
+let el=document.getElementById(f.key);
+if(el) el.oninput = syncPoint;
 });
 },0);
 }
@@ -375,19 +561,16 @@ el.oninput = syncPoint;
 
 function savePoint(){
 syncPoint();
-save();
 renderStation();
 }
 
 function saveAndNext(){
 syncPoint();
-save();
 newPoint(false);
 }
 
 function duplicateAndNext(){
 syncPoint();
-save();
 newPoint(true);
 }
 
@@ -432,43 +615,72 @@ renderStation();
 
 /* ================= EXPORT ================= */
 
-function exportCSV(){
+function exportCSV(csv){
 
-let csv="station,point,gps,position,facies,habitat,granulometrie,depth,espece,taille,poids\n";
+const fileName = `station_${currentStation.name}.csv`;
 
-currentStation.points.forEach(p=>{
+// 🥇 PARTAGE NATIF
+if (navigator.canShare) {
+  try {
+    const file = new File([csv], fileName, { type: "text/csv" });
 
-if(p.fish.length===0){
-csv+=`${currentStation.name},${p.num},${p.gps},${p.position},${p.facies},${p.habitat},${p.granulometrie},${p.depth},,,\n`;
+    if (navigator.canShare({ files: [file] })) {
+      navigator.share({
+        title: "Export CSV",
+        text: "Données pêche électrique",
+        files: [file]
+      });
+
+      return;
+    }
+  } catch (e) {
+    console.log("share error", e);
+  }
 }
 
-p.fish.forEach(f=>{
-csv+=`${currentStation.name},${p.num},${p.gps},${p.position},${p.facies},${p.habitat},${p.granulometrie},${p.depth},${f.sp},${f.size},${f.weight}\n`;
-});
-
-});
-
-let blob=new Blob([csv],{type:"text/csv;charset=utf-8;"});
-let url=URL.createObjectURL(blob);
-
-let a=document.createElement("a");
-a.href=url;
-a.download=`station_${currentStation.name}.csv`;
-a.click();
+// 🥈 COPIE PRESSE-PAPIER
+if (navigator.clipboard) {
+  navigator.clipboard.writeText(csv)
+  .then(()=>{
+    alert("✅ CSV copié !\nColle-le dans Excel ou Notes");
+  })
+  .catch(()=>{
+    fallback();
+  });
+} else {
+  fallback();
 }
+
+// 🥉 FALLBACK FINAL
+function fallback(){
+  let win = window.open();
+  win.document.write(`<textarea style="width:100%;height:100%">${csv}</textarea>`);
+}
+
+}
+
 
 /* ================= INIT ================= */
 
-// ✅ sauvegarde avant fermeture / crash
 window.addEventListener("beforeunload", () => {
 save();
 });
 
+setInterval(()=>{
+save();
+}, 5000);
+
+document.addEventListener("visibilitychange", () => {
+if(document.visibilityState === "hidden"){
+save();
+}
+});
+
 renderHome();
-// ✅ PWA Service Worker
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js")
+    navigator.serviceWorker.register("sw.js")
       .then(() => console.log("SW OK"))
       .catch(err => console.log("SW error", err));
   });

@@ -179,7 +179,21 @@ text-align:center;
 </head>
 
 <body>
+<div id="saveStatus" style="
+position:fixed;
+top:10px;
+right:10px;
+z-index:9999;
+font-size:14px;
+background:white;
+padding:5px 10px;
+border-radius:8px;
+box-shadow:0 2px 6px rgba(0,0,0,0.2);
+">
+💾 ...
+</div>
 
+<div id="app"></div>
 <datalist id="speciesDatalist">
 <option value="TRF">
 <option value="CHE">
@@ -206,72 +220,21 @@ text-align:center;
 <option value="PHX">
 </datalist>
 
-<div id="app"></div>
 
 <script src="app.js"></script>
 
+
+
 <script>
-let deferredPrompt = null;
-
-// capture event si dispo
-window.addEventListener("beforeinstallprompt", (e) => {
-e.preventDefault();
-deferredPrompt = e;
-showInstallButton();
-});
-
-// fallback SI EVENT NE SE DECLENCHE PAS
-window.addEventListener("load", () => {
-setTimeout(showInstallButton, 3000);
-});
-
-function showInstallButton(){
-
-if(document.getElementById("installBtn")) return;
-
-const btn = document.createElement("button");
-btn.id = "installBtn";
-btn.innerText = "📲 Installer l'application";
-
-btn.style.position = "fixed";
-btn.style.bottom = "20px";
-btn.style.left = "10px";
-btn.style.right = "10px";
-btn.style.zIndex = "9999";
-btn.style.background = "#00695c";
-btn.style.color = "white";
-btn.style.padding = "16px";
-btn.style.fontSize = "18px";
-btn.style.border = "none";
-btn.style.borderRadius = "10px";
-
-btn.onclick = async () => {
-
-btn.remove();
-
-// si PWA dispo
-if(deferredPrompt){
-deferredPrompt.prompt();
-await deferredPrompt.userChoice;
-deferredPrompt = null;
-return;
-}
-
-// fallback manuel
-};
-
-document.body.appendChild(btn);
+if("serviceWorker" in navigator){
+navigator.serviceWorker.register("service-worker.js");
 }
 </script>
 
-<script>
-
-</script>
-
-</body>
-</html>
 <script>
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
 });
 </script>
+</body>
+</html>

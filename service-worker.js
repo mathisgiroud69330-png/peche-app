@@ -1,61 +1,22 @@
-const CACHE_NAME = "app-v2";
+const CACHE_NAME = "v10.2";
 
 const ASSETS = [
-  "/",
-  "/index.html",
-  "/app.js",
-  "/manifest.json",
-  "/icon-192.png",
-  "/icon-512.png"
+  "./",
+  "./index.html",
+  "./style.css",
+  "./app.js"
 ];
 
-self.addEventListener("install", event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(ASSETS);
-    })
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
-  self.skipWaiting();
 });
 
-self.addEventListener("activate", event => {
-  event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      )
-    )
-  );
-  self.clients.claim();
-});
-
-self.addEventListener("fetch", event => {
-
-  // ✅ On ignore les requêtes non GET
-  if (event.request.method !== "GET") return;
-
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-
-      if (cached) return cached;
-
-      return fetch(event.request)
-        .then(response => {
-
-          // ✅ on met en cache dynamiquement
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => {
-            cache.put(event.request, clone);
-          });
-
-          return response;
-        })
-        .catch(() => {
-          // ✅ fallback uniquement pour navigation HTML
-          if (event.request.mode === "navigate") {
-            return caches.match("/index.html");
-          }
-        });
+self.addEventListener("fetch", e => {
+  e.respondWith(
+    caches.match(e.request).then(res => {
+      return res || fetch(e.request);
     })
   );
 });
